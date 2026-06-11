@@ -22,9 +22,12 @@
   .sidebar-header p.count { font-size: 11px; color: rgba(255,255,255,0.45); }
   .sidebar-list { overflow-y: auto; flex: 1; padding: 6px 0; }
 
+  .region-label { padding: 10px 18px 5px; font-size: 9px; font-weight: 700; color: rgba(245,200,0,0.65); letter-spacing: 0.12em; text-transform: uppercase; border-top: 0.5px solid rgba(255,255,255,0.08); margin-top: 4px; }
+  .sidebar-list > .region-label:first-child { border-top: none; margin-top: 0; }
+
   .office-item { padding: 11px 18px; cursor: pointer; border-bottom: 0.5px solid rgba(255,255,255,0.07); transition: background 0.15s; }
   .office-item:hover { background: rgba(245,200,0,0.1); }
-  .office-item.active { background: rgba(245,200,0,0.15); border-left: 2px solid #F5C800; }
+  .office-item.active { background: rgba(245,200,0,0.15); border-left: 2px solid #F5C800; padding-left: 16px; }
   .office-item .row { display: flex; align-items: center; gap: 10px; }
   .office-item .flag { font-size: 18px; line-height: 1; flex-shrink: 0; }
   .office-item .name { font-size: 12px; font-weight: 500; color: #fff; line-height: 1.3; }
@@ -48,10 +51,29 @@
   #tooltip .tt-flag { font-size: 22px; line-height: 1; flex-shrink: 0; }
   #tooltip .tt-short { font-size: 13px; font-weight: 600; color: #F5C800; }
   #tooltip .tt-city { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 1px; }
+  #tooltip .tt-logo { display: none; height: 20px; max-width: 72px; object-fit: contain; margin-top: 5px; filter: brightness(0) invert(1); opacity: 0.85; }
   #tooltip .tt-entity { font-size: 11px; color: rgba(255,255,255,0.85); line-height: 1.5; margin-bottom: 8px; }
   #tooltip .tt-address { font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.6; white-space: pre-line; border-top: 0.5px solid rgba(255,255,255,0.15); padding-top: 8px; }
 
   .leaflet-container { background: #d0dce8; }
+
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.8); opacity: 0.75; }
+    70%  { transform: scale(2.4); opacity: 0; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  .pulse-wrapper { position: relative; display: inline-block; }
+  .pulse-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 14px; height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: rgba(245,200,0,0.45);
+    animation: pulse-ring 2.5s ease-out infinite;
+    pointer-events: none;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 0.9s; }
 </style>
 </head>
 <body>
@@ -70,7 +92,6 @@
     </div>
     <div class="sidebar-list" id="sidebar-list"></div>
   </div>
-
   <div id="map"></div>
 </div>
 
@@ -80,6 +101,7 @@
     <div>
       <div class="tt-short" id="tt-short"></div>
       <div class="tt-city" id="tt-city"></div>
+      <img id="tt-logo" class="tt-logo" src="" alt=""/>
     </div>
   </div>
   <div class="tt-entity" id="tt-entity"></div>
@@ -88,122 +110,146 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// Logo data URLs — replace the empty strings with base64 image data once logos are uploaded
+const LOGOS = {
+  pcl:  null,  // e.g. 'data:image/png;base64,...'
+  pacc: null
+};
+
 const offices = [
-  { entity:"Pacific Carriers Limited", short:"PCL HQ", city:"Singapore", flag:"🇸🇬", lat:1.2897, lng:103.8276, address:"No 1 Kim Seng Promenade\n#07-01 Great World City\nSingapore 237994" },
-  { entity:"PCL (Shipping) Beijing Co., Ltd", short:"PCL Beijing", city:"Beijing, China", flag:"🇨🇳", lat:39.935, lng:116.42, address:"Rm 0716 Sanli Dasha\nNo.208 Andingmenwai Dajie\nBeijing 100011" },
-  { entity:"PACC Line Pte Ltd", short:"PACC Line", city:"Hamburg, Germany", flag:"🇩🇪", lat:53.5488, lng:9.9872, address:"Cremon 1\n20457 Hamburg\nGermany" },
-  { entity:"PCL Shipping Private Limited", short:"PCL India", city:"Mumbai, India", flag:"🇮🇳", lat:19.005, lng:72.8258, address:"A 404, Naman Midtown\nSenapati Bapat Marg, Elphinstone\nMumbai 400 013" },
-  { entity:"PACC Ship Managers Pte Ltd", short:"PACC Jakarta", city:"Jakarta, Indonesia", flag:"🇮🇩", lat:-6.1571, lng:106.9003, address:"Harton Tower, Lantai 7 Unit 7C\nBlok D Kav.3, Kelapa Gading\nJakarta Utara 14240" },
-  { entity:"Malaysian Bulk Carriers Berhad", short:"MBC", city:"Kuala Lumpur, Malaysia", flag:"🇲🇾", lat:3.1179, lng:101.684, address:"Unit 11.03A, Level 11, Mercu 2\nNo. 3, Jalan Bangsar, KL Eco City\nKuala Lumpur 59200" },
-  { entity:"PACC Shipping Phils., Inc", short:"PACC Philippines", city:"Manila, Philippines", flag:"🇵🇭", lat:14.5547, lng:120.9934, address:"B & C, 9th Floor\nRamon Magsaysay Center\n1680 Roxas Boulevard, Manila" },
-  { entity:"PCL Shipping Inc.", short:"PCL New York", city:"New York, USA", flag:"🇺🇸", lat:40.7614, lng:-73.9735, address:"477 Madison Avenue, 6th Floor\nManhattan, New York 10022" }
+  // Asia Pacific
+  { entity:"Pacific Carriers Limited",       short:"PCL HQ",          city:"Singapore",          flag:"🇸🇬", region:"Asia Pacific", logo:"pcl",  lat:1.2897,  lng:103.8276, address:"No 1 Kim Seng Promenade\n#07-01 Great World City\nSingapore 237994" },
+  { entity:"PCL (Shipping) Beijing Co., Ltd", short:"PCL Beijing",      city:"Beijing, China",     flag:"🇨🇳", region:"Asia Pacific", logo:"pcl",  lat:39.935,  lng:116.42,   address:"Rm 0716 Sanli Dasha\nNo.208 Andingmenwai Dajie\nBeijing 100011" },
+  { entity:"PCL Shipping Private Limited",    short:"PCL India",        city:"Mumbai, India",      flag:"🇮🇳", region:"Asia Pacific", logo:"pcl",  lat:19.005,  lng:72.8258,  address:"A 404, Naman Midtown\nSenapati Bapat Marg, Elphinstone\nMumbai 400 013" },
+  { entity:"PACC Ship Managers Pte Ltd",      short:"PACC Jakarta",     city:"Jakarta, Indonesia", flag:"🇮🇩", region:"Asia Pacific", logo:"pacc", lat:-6.1571, lng:106.9003, address:"Harton Tower, Lantai 7 Unit 7C\nBlok D Kav.3, Kelapa Gading\nJakarta Utara 14240" },
+  { entity:"Malaysian Bulk Carriers Berhad",  short:"MBC",              city:"Kuala Lumpur",       flag:"🇲🇾", region:"Asia Pacific", logo:null,   lat:3.1179,  lng:101.684,  address:"Unit 11.03A, Level 11, Mercu 2\nNo. 3, Jalan Bangsar, KL Eco City\nKuala Lumpur 59200" },
+  { entity:"PACC Shipping Phils., Inc",       short:"PACC Philippines", city:"Manila, Philippines",flag:"🇵🇭", region:"Asia Pacific", logo:"pacc", lat:14.5547, lng:120.9934, address:"B & C, 9th Floor\nRamon Magsaysay Center\n1680 Roxas Boulevard, Manila" },
+  // Europe
+  { entity:"PACC Line Pte Ltd",               short:"PACC Line",        city:"Hamburg, Germany",   flag:"🇩🇪", region:"Europe",       logo:"pacc", lat:53.5488, lng:9.9872,   address:"Cremon 1\n20457 Hamburg\nGermany" },
+  // Americas
+  { entity:"PCL Shipping Inc.",               short:"PCL New York",     city:"New York, USA",      flag:"🇺🇸", region:"Americas",     logo:"pcl",  lat:40.7614, lng:-73.9735, address:"477 Madison Avenue, 6th Floor\nManhattan, New York 10022" }
 ];
 
-const NAVY = "#1B3A8C";
+const NAVY  = "#1B3A8C";
 const YELLOW = "#F5C800";
 
 const map = L.map('map', {
-  center:[15,30],
-  zoom:2,
-  zoomControl:true,
-  scrollWheelZoom:true,
-  worldCopyJump: false,
-  maxBounds: [[-90,-180],[90,180]],
-  maxBoundsViscosity: 1.0,
-  minZoom: 2
+  center:[15,30], zoom:2,
+  zoomControl:true, scrollWheelZoom:true,
+  worldCopyJump:false,
+  maxBounds:[[-90,-180],[90,180]],
+  maxBoundsViscosity:1.0,
+  minZoom:2
 });
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
   attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
-  maxZoom:18,
-  noWrap: true,
-  bounds: [[-90,-180],[90,180]]
+  maxZoom:18, noWrap:true, bounds:[[-90,-180],[90,180]]
 }).addTo(map);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
   attribution:'', maxZoom:18, opacity:0.7,
-  noWrap: true,
-  bounds: [[-90,-180],[90,180]]
+  noWrap:true, bounds:[[-90,-180],[90,180]]
 }).addTo(map);
 
-const makeIcon = (active) => L.divIcon({
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="${active?34:26}" height="${active?44:34}" viewBox="0 0 28 36">
-    <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22S28 23.5 28 14C28 6.27 21.73 0 14 0z" fill="${active?YELLOW:NAVY}" stroke="${active?NAVY:YELLOW}" stroke-width="2"/>
-    <circle cx="14" cy="14" r="5" fill="${active?NAVY:YELLOW}"/>
-  </svg>`,
-  className:'',
-  iconSize:[active?34:26, active?44:34],
-  iconAnchor:[active?17:13, active?44:34]
-});
+const makeIcon = (active) => {
+  const size   = active ? 34 : 26;
+  const anchor = active ? 17 : 13;
+  const fill   = active ? YELLOW : NAVY;
+  const stroke = active ? NAVY   : YELLOW;
+  const pulse  = !active
+    ? `<div class="pulse-ring"></div><div class="pulse-ring"></div>`
+    : '';
+  return L.divIcon({
+    html: `<div class="pulse-wrapper">${pulse}
+      <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${Math.round(size*1.38)}" viewBox="0 0 28 36" style="display:block;">
+        <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22S28 23.5 28 14C28 6.27 21.73 0 14 0z" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+        <circle cx="14" cy="14" r="5" fill="${stroke}"/>
+      </svg></div>`,
+    className:'',
+    iconSize:[size, Math.round(size*1.38)],
+    iconAnchor:[anchor, Math.round(size*1.38)]
+  });
+};
 
-const tooltip = document.getElementById('tooltip');
-const ttFlag = document.getElementById('tt-flag');
-const ttShort = document.getElementById('tt-short');
-const ttCity = document.getElementById('tt-city');
-const ttEntity = document.getElementById('tt-entity');
+const tooltip   = document.getElementById('tooltip');
+const ttFlag    = document.getElementById('tt-flag');
+const ttShort   = document.getElementById('tt-short');
+const ttCity    = document.getElementById('tt-city');
+const ttEntity  = document.getElementById('tt-entity');
 const ttAddress = document.getElementById('tt-address');
+const ttLogo    = document.getElementById('tt-logo');
 const sidebarList = document.getElementById('sidebar-list');
 
 let activeMarker = null;
-let activeItem = null;
+let activeItem   = null;
 
-offices.forEach((o, i) => {
-  const marker = L.marker([o.lat, o.lng], { icon: makeIcon(false) }).addTo(map);
+// Build sidebar grouped by region
+['Asia Pacific', 'Europe', 'Americas'].forEach(region => {
+  const group = offices.filter(o => o.region === region);
+  if (!group.length) return;
 
-  const item = document.createElement('div');
-  item.className = 'office-item';
-  item.innerHTML = `
-    <div class="row">
-      <span class="flag">${o.flag}</span>
-      <div>
-        <div class="name">${o.short}</div>
-        <div class="city">${o.city}</div>
-      </div>
-    </div>`;
+  const regionLabel = document.createElement('div');
+  regionLabel.className = 'region-label';
+  regionLabel.textContent = region;
+  sidebarList.appendChild(regionLabel);
 
-  item.addEventListener('click', () => {
-    map.setView([o.lat, o.lng], 5, { animate:true });
-    if (activeMarker) activeMarker.setIcon(makeIcon(false));
-    if (activeItem) activeItem.classList.remove('active');
-    marker.setIcon(makeIcon(true));
-    activeMarker = marker;
-    item.classList.add('active');
-    activeItem = item;
-  });
+  group.forEach(o => {
+    const marker = L.marker([o.lat, o.lng], { icon: makeIcon(false) }).addTo(map);
 
-  sidebarList.appendChild(item);
+    const item = document.createElement('div');
+    item.className = 'office-item';
+    item.innerHTML = `
+      <div class="row">
+        <span class="flag">${o.flag}</span>
+        <div>
+          <div class="name">${o.short}</div>
+          <div class="city">${o.city}</div>
+        </div>
+      </div>`;
 
-  marker.on('mouseover', function(e) {
-    if (activeMarker !== marker) this.setIcon(makeIcon(true));
-    ttFlag.textContent = o.flag;
-    ttShort.textContent = o.short;
-    ttCity.textContent = o.city;
-    ttEntity.textContent = o.entity;
-    ttAddress.textContent = o.address;
-    tooltip.style.display = 'block';
-  });
-  marker.on('mousemove', function(e) {
-    const x = e.originalEvent.clientX;
-    const y = e.originalEvent.clientY;
-    const tw = tooltip.offsetWidth;
-    const th = tooltip.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    tooltip.style.left = (x + 18 + tw > vw ? x - tw - 12 : x + 18) + 'px';
-    tooltip.style.top  = (y - 10 + th > vh ? vh - th - 10 : y - 10) + 'px';
-  });
-  marker.on('mouseout', function(e) {
-    if (activeMarker !== marker) this.setIcon(makeIcon(false));
-    tooltip.style.display = 'none';
-  });
-  marker.on('click', function() {
-    map.setView([o.lat, o.lng], 5, { animate:true });
-    if (activeMarker) activeMarker.setIcon(makeIcon(false));
-    if (activeItem) activeItem.classList.remove('active');
-    this.setIcon(makeIcon(true));
-    activeMarker = marker;
-    item.classList.add('active');
-    activeItem = item;
+    const activate = () => {
+      map.setView([o.lat, o.lng], 5, { animate:true });
+      if (activeMarker) activeMarker.setIcon(makeIcon(false));
+      if (activeItem)   activeItem.classList.remove('active');
+      marker.setIcon(makeIcon(true));
+      activeMarker = marker;
+      item.classList.add('active');
+      activeItem = item;
+    };
+
+    item.addEventListener('click', activate);
+    sidebarList.appendChild(item);
+
+    marker.on('mouseover', function(e) {
+      if (activeMarker !== marker) this.setIcon(makeIcon(true));
+      ttFlag.textContent    = o.flag;
+      ttShort.textContent   = o.short;
+      ttCity.textContent    = o.city;
+      ttEntity.textContent  = o.entity;
+      ttAddress.textContent = o.address;
+      // Show logo if available
+      const logoSrc = o.logo ? LOGOS[o.logo] : null;
+      if (logoSrc) {
+        ttLogo.src = logoSrc;
+        ttLogo.style.display = 'block';
+      } else {
+        ttLogo.style.display = 'none';
+      }
+      tooltip.style.display = 'block';
+    });
+    marker.on('mousemove', function(e) {
+      const x=e.originalEvent.clientX, y=e.originalEvent.clientY;
+      const tw=tooltip.offsetWidth,    th=tooltip.offsetHeight;
+      const vw=window.innerWidth,      vh=window.innerHeight;
+      tooltip.style.left = (x+18+tw>vw ? x-tw-12 : x+18)+'px';
+      tooltip.style.top  = (y-10+th>vh ? vh-th-10 : y-10)+'px';
+    });
+    marker.on('mouseout', function() {
+      if (activeMarker !== marker) this.setIcon(makeIcon(false));
+      tooltip.style.display = 'none';
+    });
+    marker.on('click', activate);
   });
 });
 </script>
