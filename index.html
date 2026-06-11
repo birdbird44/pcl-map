@@ -7,51 +7,51 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a1628; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #e8eef4; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-  header { background: #0d1b3e; border-bottom: 1px solid rgba(245,200,0,0.3); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  header { background: #1B3A8C; border-bottom: 1px solid rgba(245,200,0,0.4); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
   header .logo { font-size: 20px; font-weight: 700; color: #F5C800; letter-spacing: 0.05em; }
-  header .subtitle { font-size: 13px; color: rgba(255,255,255,0.5); }
+  header .subtitle { font-size: 13px; color: rgba(255,255,255,0.6); }
   header .dot { width: 6px; height: 6px; border-radius: 50%; background: #F5C800; opacity: 0.6; }
 
   .layout { display: flex; flex: 1; overflow: hidden; }
 
-  .sidebar { width: 260px; min-width: 260px; background: #0d1b3e; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.08); }
-  .sidebar-header { padding: 18px 18px 12px; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
+  .sidebar { width: 260px; min-width: 260px; background: #1B3A8C; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-header { padding: 18px 18px 12px; border-bottom: 0.5px solid rgba(255,255,255,0.12); }
   .sidebar-header p.label { font-size: 10px; font-weight: 600; color: #F5C800; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
-  .sidebar-header p.count { font-size: 11px; color: rgba(255,255,255,0.4); }
+  .sidebar-header p.count { font-size: 11px; color: rgba(255,255,255,0.45); }
   .sidebar-list { overflow-y: auto; flex: 1; padding: 6px 0; }
 
-  .office-item { padding: 11px 18px; cursor: pointer; border-bottom: 0.5px solid rgba(255,255,255,0.05); transition: background 0.15s; }
-  .office-item:hover { background: rgba(245,200,0,0.07); }
-  .office-item.active { background: rgba(245,200,0,0.12); border-left: 2px solid #F5C800; }
+  .office-item { padding: 11px 18px; cursor: pointer; border-bottom: 0.5px solid rgba(255,255,255,0.07); transition: background 0.15s; }
+  .office-item:hover { background: rgba(245,200,0,0.1); }
+  .office-item.active { background: rgba(245,200,0,0.15); border-left: 2px solid #F5C800; }
   .office-item .row { display: flex; align-items: center; gap: 10px; }
   .office-item .flag { font-size: 18px; line-height: 1; flex-shrink: 0; }
   .office-item .name { font-size: 12px; font-weight: 500; color: #fff; line-height: 1.3; }
-  .office-item .city { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .office-item .city { font-size: 10px; color: rgba(255,255,255,0.45); margin-top: 2px; }
 
   #map { flex: 1; height: 100%; }
 
   #tooltip {
     position: fixed;
     display: none;
-    background: #0d1b3e;
+    background: #1B3A8C;
     border: 1px solid #F5C800;
     border-radius: 8px;
     padding: 14px 16px;
     max-width: 240px;
     pointer-events: none;
     z-index: 9999;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   }
   #tooltip .tt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   #tooltip .tt-flag { font-size: 22px; line-height: 1; flex-shrink: 0; }
   #tooltip .tt-short { font-size: 13px; font-weight: 600; color: #F5C800; }
-  #tooltip .tt-city { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 1px; }
-  #tooltip .tt-entity { font-size: 11px; color: rgba(255,255,255,0.8); line-height: 1.5; margin-bottom: 8px; }
-  #tooltip .tt-address { font-size: 10px; color: rgba(255,255,255,0.45); line-height: 1.6; white-space: pre-line; border-top: 0.5px solid rgba(255,255,255,0.1); padding-top: 8px; }
+  #tooltip .tt-city { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 1px; }
+  #tooltip .tt-entity { font-size: 11px; color: rgba(255,255,255,0.85); line-height: 1.5; margin-bottom: 8px; }
+  #tooltip .tt-address { font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.6; white-space: pre-line; border-top: 0.5px solid rgba(255,255,255,0.15); padding-top: 8px; }
 
-  .leaflet-container { background: #0a1628; }
+  .leaflet-container { background: #d0dce8; }
 </style>
 </head>
 <body>
@@ -102,15 +102,28 @@ const offices = [
 const NAVY = "#1B3A8C";
 const YELLOW = "#F5C800";
 
-const map = L.map('map', { center:[15,55], zoom:2, zoomControl:true, scrollWheelZoom:true });
+const map = L.map('map', {
+  center:[15,30],
+  zoom:2,
+  zoomControl:true,
+  scrollWheelZoom:true,
+  worldCopyJump: false,
+  maxBounds: [[-90,-180],[90,180]],
+  maxBoundsViscosity: 1.0,
+  minZoom: 2
+});
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
   attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
-  maxZoom:18
+  maxZoom:18,
+  noWrap: true,
+  bounds: [[-90,-180],[90,180]]
 }).addTo(map);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-  attribution:'', maxZoom:18, opacity:0.5
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+  attribution:'', maxZoom:18, opacity:0.7,
+  noWrap: true,
+  bounds: [[-90,-180],[90,180]]
 }).addTo(map);
 
 const makeIcon = (active) => L.divIcon({
