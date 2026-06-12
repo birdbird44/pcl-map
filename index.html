@@ -9,10 +9,15 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #e8eef4; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-  header { background: #1B3A8C; border-bottom: 1px solid rgba(245,200,0,0.4); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  header { background: #1B3A8C; border-bottom: 1px solid rgba(245,200,0,0.4); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
   header .logo { font-size: 20px; font-weight: 700; color: #F5C800; letter-spacing: 0.05em; }
   header .subtitle { font-size: 13px; color: rgba(255,255,255,0.6); }
-  header .dot { width: 6px; height: 6px; border-radius: 50%; background: #F5C800; opacity: 0.6; }
+  header .dot { width: 6px; height: 6px; border-radius: 50%; background: #F5C800; opacity: 0.6; flex-shrink:0; }
+  header .ticker { margin-left: auto; display: flex; align-items: center; gap: 16px; height: 100%; }
+  header .ticker-sep { font-size: 22px; color: rgba(245,200,0,0.25); font-weight: 300; line-height: 1; }
+  header .ticker-item { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  header .ticker-num { font-size: 28px; font-weight: 700; color: #F5C800; line-height: 1; }
+  header .ticker-label { font-size: 9px; color: rgba(255,255,255,0.45); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
 
   .layout { display: flex; flex: 1; overflow: hidden; }
 
@@ -36,15 +41,10 @@
   #map { flex: 1; height: 100%; }
 
   #tooltip {
-    position: fixed;
-    display: none;
-    background: #1B3A8C;
-    border: 1px solid #F5C800;
-    border-radius: 8px;
-    padding: 14px 16px;
-    max-width: 240px;
-    pointer-events: none;
-    z-index: 9999;
+    position: fixed; display: none;
+    background: #1B3A8C; border: 1px solid #F5C800;
+    border-radius: 8px; padding: 14px 16px; max-width: 240px;
+    pointer-events: none; z-index: 9999;
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   }
   #tooltip .tt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -64,14 +64,10 @@
   }
   .pulse-wrapper { position: relative; display: inline-block; }
   .pulse-ring {
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 14px; height: 14px;
-    margin: -7px 0 0 -7px;
-    border-radius: 50%;
-    background: rgba(245,200,0,0.45);
-    animation: pulse-ring 2.5s ease-out infinite;
-    pointer-events: none;
+    position: absolute; top: 50%; left: 50%;
+    width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    border-radius: 50%; background: rgba(245,200,0,0.45);
+    animation: pulse-ring 2.5s ease-out infinite; pointer-events: none;
   }
   .pulse-ring:nth-child(2) { animation-delay: 0.9s; }
 </style>
@@ -82,6 +78,22 @@
   <span class="logo">PCL</span>
   <div class="dot"></div>
   <span class="subtitle">Global Office Locations</span>
+  <div class="ticker">
+    <div class="ticker-item">
+      <span class="ticker-num" id="tick-offices">0</span>
+      <span class="ticker-label">Offices</span>
+    </div>
+    <span class="ticker-sep">·</span>
+    <div class="ticker-item">
+      <span class="ticker-num" id="tick-continents">0</span>
+      <span class="ticker-label">Continents</span>
+    </div>
+    <span class="ticker-sep">·</span>
+    <div class="ticker-item">
+      <span class="ticker-num" id="tick-countries">0</span>
+      <span class="ticker-label">Countries</span>
+    </div>
+  </div>
 </header>
 
 <div class="layout">
@@ -110,29 +122,25 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// Logo data URLs — replace the empty strings with base64 image data once logos are uploaded
-const LOGOS = {
-  pcl:  null,  // e.g. 'data:image/png;base64,...'
-  pacc: null
-};
+const LOGOS = { pcl: null, pacc: null };
+
+const HQ_LAT = 1.2897, HQ_LNG = 103.8276;
 
 const offices = [
-  // Asia Pacific
-  { entity:"Pacific Carriers Limited",       short:"PCL HQ",          city:"Singapore",          flag:"🇸🇬", region:"Asia Pacific", logo:"pcl",  lat:1.2897,  lng:103.8276, address:"No 1 Kim Seng Promenade\n#07-01 Great World City\nSingapore 237994" },
-  { entity:"PCL (Shipping) Beijing Co., Ltd", short:"PCL Beijing",      city:"Beijing, China",     flag:"🇨🇳", region:"Asia Pacific", logo:"pcl",  lat:39.935,  lng:116.42,   address:"Rm 0716 Sanli Dasha\nNo.208 Andingmenwai Dajie\nBeijing 100011" },
-  { entity:"PCL Shipping Private Limited",    short:"PCL India",        city:"Mumbai, India",      flag:"🇮🇳", region:"Asia Pacific", logo:"pcl",  lat:19.005,  lng:72.8258,  address:"A 404, Naman Midtown\nSenapati Bapat Marg, Elphinstone\nMumbai 400 013" },
-  { entity:"PACC Ship Managers Pte Ltd",      short:"PACC Jakarta",     city:"Jakarta, Indonesia", flag:"🇮🇩", region:"Asia Pacific", logo:"pacc", lat:-6.1571, lng:106.9003, address:"Harton Tower, Lantai 7 Unit 7C\nBlok D Kav.3, Kelapa Gading\nJakarta Utara 14240" },
-  { entity:"Malaysian Bulk Carriers Berhad",  short:"MBC",              city:"Kuala Lumpur",       flag:"🇲🇾", region:"Asia Pacific", logo:null,   lat:3.1179,  lng:101.684,  address:"Unit 11.03A, Level 11, Mercu 2\nNo. 3, Jalan Bangsar, KL Eco City\nKuala Lumpur 59200" },
-  { entity:"PACC Shipping Phils., Inc",       short:"PACC Philippines", city:"Manila, Philippines",flag:"🇵🇭", region:"Asia Pacific", logo:"pacc", lat:14.5547, lng:120.9934, address:"B & C, 9th Floor\nRamon Magsaysay Center\n1680 Roxas Boulevard, Manila" },
-  // Europe
-  { entity:"PACC Line Pte Ltd",               short:"PACC Line",        city:"Hamburg, Germany",   flag:"🇩🇪", region:"Europe",       logo:"pacc", lat:53.5488, lng:9.9872,   address:"Cremon 1\n20457 Hamburg\nGermany" },
-  // Americas
-  { entity:"PCL Shipping Inc.",               short:"PCL New York",     city:"New York, USA",      flag:"🇺🇸", region:"Americas",     logo:"pcl",  lat:40.7614, lng:-73.9735, address:"477 Madison Avenue, 6th Floor\nManhattan, New York 10022" }
+  { entity:"Pacific Carriers Limited",        short:"PCL HQ",           city:"Singapore",           flag:"🇸🇬", region:"Asia Pacific", logo:"pcl",  lat:HQ_LAT,  lng:HQ_LNG,   address:"No 1 Kim Seng Promenade\n#07-01 Great World City\nSingapore 237994" },
+  { entity:"PCL (Shipping) Beijing Co., Ltd",  short:"PCL Beijing",      city:"Beijing, China",      flag:"🇨🇳", region:"Asia Pacific", logo:"pcl",  lat:39.935,  lng:116.42,   address:"Rm 0716 Sanli Dasha\nNo.208 Andingmenwai Dajie\nBeijing 100011" },
+  { entity:"PCL Shipping Private Limited",     short:"PCL India",        city:"Mumbai, India",       flag:"🇮🇳", region:"Asia Pacific", logo:"pcl",  lat:19.005,  lng:72.8258,  address:"A 404, Naman Midtown\nSenapati Bapat Marg, Elphinstone\nMumbai 400 013" },
+  { entity:"PACC Ship Managers Pte Ltd",       short:"PACC Jakarta",     city:"Jakarta, Indonesia",  flag:"🇮🇩", region:"Asia Pacific", logo:"pacc", lat:-6.1571, lng:106.9003, address:"Harton Tower, Lantai 7 Unit 7C\nBlok D Kav.3, Kelapa Gading\nJakarta Utara 14240" },
+  { entity:"Malaysian Bulk Carriers Berhad",   short:"MBC",              city:"Kuala Lumpur",        flag:"🇲🇾", region:"Asia Pacific", logo:null,   lat:3.1179,  lng:101.684,  address:"Unit 11.03A, Level 11, Mercu 2\nNo. 3, Jalan Bangsar, KL Eco City\nKuala Lumpur 59200" },
+  { entity:"PACC Shipping Phils., Inc",        short:"PACC Philippines", city:"Manila, Philippines", flag:"🇵🇭", region:"Asia Pacific", logo:"pacc", lat:14.5547, lng:120.9934, address:"B & C, 9th Floor\nRamon Magsaysay Center\n1680 Roxas Boulevard, Manila" },
+  { entity:"PACC Line Pte Ltd",                short:"PACC Line",        city:"Hamburg, Germany",    flag:"🇩🇪", region:"Europe",       logo:"pacc", lat:53.5488, lng:9.9872,   address:"Cremon 1\n20457 Hamburg\nGermany" },
+  { entity:"PCL Shipping Inc.",                short:"PCL New York",     city:"New York, USA",       flag:"🇺🇸", region:"Americas",     logo:"pcl",  lat:40.7614, lng:-73.9735, address:"477 Madison Avenue, 6th Floor\nManhattan, New York 10022" }
 ];
 
-const NAVY  = "#1B3A8C";
+const NAVY   = "#1B3A8C";
 const YELLOW = "#F5C800";
 
+// --- Map ---
 const map = L.map('map', {
   center:[15,30], zoom:2,
   zoomControl:true, scrollWheelZoom:true,
@@ -148,18 +156,115 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/
 }).addTo(map);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
-  attribution:'', maxZoom:18, opacity:0.7,
-  noWrap:true, bounds:[[-90,-180],[90,180]]
+  attribution:'', maxZoom:18, opacity:0.7, noWrap:true, bounds:[[-90,-180],[90,180]]
 }).addTo(map);
 
+// --- Animated connection lines using Leaflet polylines ---
+function curvedPoints(lat1, lng1, lat2, lng2, steps) {
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const lat = lat1 + (lat2 - lat1) * t;
+    const lng = lng1 + (lng2 - lng1) * t;
+    const arcHeight = Math.sqrt(Math.pow(lat2-lat1,2) + Math.pow(lng2-lng1,2)) * 0.18;
+    const arc = Math.sin(Math.PI * t) * arcHeight;
+    pts.push([lat + arc, lng]);
+  }
+  return pts;
+}
+
+const nonHQ = offices.filter(o => !(o.lat === HQ_LAT && o.lng === HQ_LNG));
+
+const allPolylines = nonHQ.map(o => {
+  const pts = curvedPoints(HQ_LAT, HQ_LNG, o.lat, o.lng, 60);
+  const pl = L.polyline([], {
+    color: YELLOW,
+    weight: 3,
+    opacity: 0,
+    smoothFactor: 1
+  }).addTo(map);
+  return { pts, pl };
+});
+
+function runCycle() {
+  allPolylines.forEach(({ pl }) => {
+    pl.setLatLngs([]);
+    pl.setStyle({ opacity: 0 });
+  });
+
+  let lineIndex = 0;
+
+  function drawNext() {
+    if (lineIndex >= allPolylines.length) {
+      setTimeout(fadeOut, 1500);
+      return;
+    }
+    const { pts, pl } = allPolylines[lineIndex];
+    pl.setStyle({ opacity: 0.85 });
+    let drawn = 1;
+    pl.setLatLngs([pts[0]]);
+
+    const interval = setInterval(() => {
+      drawn++;
+      pl.setLatLngs(pts.slice(0, drawn));
+      if (drawn >= pts.length) {
+        clearInterval(interval);
+        lineIndex++;
+        setTimeout(drawNext, 180);
+      }
+    }, 18);
+  }
+
+  function fadeOut() {
+    const fadeDuration = 1200;
+    const startTime = performance.now();
+    function step(now) {
+      const t = Math.min((now - startTime) / fadeDuration, 1);
+      const opacity = 0.85 * (1 - t);
+      allPolylines.forEach(({ pl }) => pl.setStyle({ opacity }));
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setTimeout(runCycle, 800);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  drawNext();
+}
+
+map.whenReady(() => {
+  setTimeout(runCycle, 1000);
+});
+
+// --- Ticker counter ---
+function animateCounter(elId, target, durationMs) {
+  const el = document.getElementById(elId);
+  const startTime = performance.now();
+  function step(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / durationMs, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(eased * target);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+setTimeout(() => {
+  animateCounter('tick-offices',    8, 8000);
+  animateCounter('tick-continents', 4, 8000);
+  animateCounter('tick-countries',  7, 8000);
+}, 400);
+
+// --- Icons ---
 const makeIcon = (active) => {
   const size   = active ? 34 : 26;
   const anchor = active ? 17 : 13;
   const fill   = active ? YELLOW : NAVY;
   const stroke = active ? NAVY   : YELLOW;
-  const pulse  = !active
-    ? `<div class="pulse-ring"></div><div class="pulse-ring"></div>`
-    : '';
+  const pulse  = !active ? `<div class="pulse-ring"></div><div class="pulse-ring"></div>` : '';
   return L.divIcon({
     html: `<div class="pulse-wrapper">${pulse}
       <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${Math.round(size*1.38)}" viewBox="0 0 28 36" style="display:block;">
@@ -172,6 +277,7 @@ const makeIcon = (active) => {
   });
 };
 
+// --- Tooltip & sidebar ---
 const tooltip   = document.getElementById('tooltip');
 const ttFlag    = document.getElementById('tt-flag');
 const ttShort   = document.getElementById('tt-short');
@@ -184,11 +290,9 @@ const sidebarList = document.getElementById('sidebar-list');
 let activeMarker = null;
 let activeItem   = null;
 
-// Build sidebar grouped by region
-['Asia Pacific', 'Europe', 'Americas'].forEach(region => {
+['Asia Pacific','Europe','Americas'].forEach(region => {
   const group = offices.filter(o => o.region === region);
   if (!group.length) return;
-
   const regionLabel = document.createElement('div');
   regionLabel.className = 'region-label';
   regionLabel.textContent = region;
@@ -199,14 +303,12 @@ let activeItem   = null;
 
     const item = document.createElement('div');
     item.className = 'office-item';
-    item.innerHTML = `
-      <div class="row">
-        <span class="flag">${o.flag}</span>
-        <div>
-          <div class="name">${o.short}</div>
-          <div class="city">${o.city}</div>
-        </div>
-      </div>`;
+    item.innerHTML = `<div class="row">
+      <span class="flag">${o.flag}</span>
+      <div>
+        <div class="name">${o.short}</div>
+        <div class="city">${o.city}</div>
+      </div></div>`;
 
     const activate = () => {
       map.setView([o.lat, o.lng], 5, { animate:true });
@@ -228,22 +330,17 @@ let activeItem   = null;
       ttCity.textContent    = o.city;
       ttEntity.textContent  = o.entity;
       ttAddress.textContent = o.address;
-      // Show logo if available
       const logoSrc = o.logo ? LOGOS[o.logo] : null;
-      if (logoSrc) {
-        ttLogo.src = logoSrc;
-        ttLogo.style.display = 'block';
-      } else {
-        ttLogo.style.display = 'none';
-      }
+      if (logoSrc) { ttLogo.src = logoSrc; ttLogo.style.display = 'block'; }
+      else { ttLogo.style.display = 'none'; }
       tooltip.style.display = 'block';
     });
     marker.on('mousemove', function(e) {
       const x=e.originalEvent.clientX, y=e.originalEvent.clientY;
-      const tw=tooltip.offsetWidth,    th=tooltip.offsetHeight;
-      const vw=window.innerWidth,      vh=window.innerHeight;
-      tooltip.style.left = (x+18+tw>vw ? x-tw-12 : x+18)+'px';
-      tooltip.style.top  = (y-10+th>vh ? vh-th-10 : y-10)+'px';
+      const tw=tooltip.offsetWidth, th=tooltip.offsetHeight;
+      const vw=window.innerWidth,   vh=window.innerHeight;
+      tooltip.style.left=(x+18+tw>vw?x-tw-12:x+18)+'px';
+      tooltip.style.top =(y-10+th>vh?vh-th-10:y-10)+'px';
     });
     marker.on('mouseout', function() {
       if (activeMarker !== marker) this.setIcon(makeIcon(false));
